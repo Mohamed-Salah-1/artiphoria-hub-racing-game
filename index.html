@@ -526,8 +526,9 @@
     <div class="game-subtitle">Racing</div>
     <div id="manualSignInArea" style="display:flex;flex-direction:column;align-items:center;gap:16px;">
       <p>Enter your name to race and compete on the leaderboard!</p>
-      <input id="playerNameInput" type="text" placeholder="Your Name" style="padding:10px 18px;font-size:16px;border-radius:8px;border:1px solid #00f5ff;background:var(--surface2);color:var(--text);width:220px;max-width:100%;text-align:center;" />
+      <input id="playerNameInput" type="text" placeholder="Your Name" value="Player" style="padding:10px 18px;font-size:16px;border-radius:8px;border:1px solid #00f5ff;background:var(--surface2);color:var(--text);width:220px;max-width:100%;text-align:center;" />
       <button class="btn btn-primary" id="manualSignInBtn">Start</button>
+      <a href="https://mohamed-salah-1.github.io/artiphoria-hub-racing-game/" target="_blank" style="color:var(--cyan);font-size:12px;margin-top:8px;text-decoration:none;opacity:0.8;">[ Play Full Screen ]</a>
       <div class="config-notice" id="catchyArtiphoriaHub" style="margin-top:10px;">
         <span style="font-family:'Racing Sans One',cursive;font-size:22px;background:linear-gradient(135deg,#00f5ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px;">Artiphoria-Hub</span>
       </div>
@@ -587,7 +588,7 @@
 // ============================================================
 //  CONFIGURATION — Replace with your Google OAuth Client ID
 // ============================================================
-const GOOGLE_CLIENT_ID = '780474978024-1qirggiskn1rmreltoigkak21e0lrf3f.apps.googleusercontent.com.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '780474978024-1qirggiskn1rmreltoigkak21e0lrf3f.apps.googleusercontent.com';
 
 // ============================================================
 //  DARK MODE
@@ -778,25 +779,34 @@ function tryAutoLogin() {
 }
 
 // Manual sign-in handler
-window.addEventListener('load', function() {
-  var signInBtn = document.getElementById('manualSignInBtn');
-  if (signInBtn) {
-    signInBtn.addEventListener('click', function() {
-      const name = document.getElementById('playerNameInput').value.trim();
-      if (!name) {
-        showModal('Please enter your name.', 'OK');
-        return;
-      }
-      currentUser = {
-        name: name,
-        email: name + '@local', // Use name as email for leaderboard
-        picture: ''
-      };
-      store('user', currentUser);
-      enterMenu();
-    });
+// Manual sign-in handler
+function handleManualSignIn() {
+  const nameInput = document.getElementById('playerNameInput');
+  const name = nameInput.value.trim();
+  if (!name) {
+    showModal('Please enter your name.', 'OK');
+    return;
   }
-});
+  currentUser = {
+    name: name,
+    email: name + '@local',
+    picture: ''
+  };
+  store('user', currentUser);
+  enterMenu();
+}
+
+const signInBtn = document.getElementById('manualSignInBtn');
+if (signInBtn) {
+  signInBtn.addEventListener('click', handleManualSignIn);
+  // Add touchstart for better mobile/iframe response
+  signInBtn.addEventListener('touchstart', (e) => {
+    if (gameState === 'login') {
+      e.preventDefault();
+      handleManualSignIn();
+    }
+  }, { passive: false });
+}
 
 function enterMenu() {
   document.getElementById('userName').textContent = currentUser.name;
@@ -1529,9 +1539,15 @@ document.getElementById('lbBackBtn').addEventListener('click', () => showScreen(
 // ============================================================
 //  INIT
 // ============================================================
-window.addEventListener('load', () => {
-  // Wait a bit for Google script to load
-  setTimeout(tryAutoLogin, 500);
+// ============================================================
+//  INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  // Check if we can auto-login
+  tryAutoLogin();
+  
+  // Also try again after a short delay for Google script
+  setTimeout(initGoogleSignIn, 1000);
 });
 
 // Polyfill roundRect if needed
