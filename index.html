@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Neon Rush Racing</title>
 <link href="https://fonts.googleapis.com/css2?family=Racing+Sans+One&family=Share+Tech+Mono&family=Exo+2:wght@400;700;900&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
     --bg: #06060e;
@@ -525,12 +524,10 @@
   <div class="overlay" id="loginScreen">
     <div class="game-title">Neon Rush</div>
     <div class="game-subtitle">Racing</div>
-    <div id="signInArea">
-      <p>Sign in with your Google account to race and compete on the leaderboard!</p>
-      <button id="customSignIn">
-        <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 0 1 9.5 24c0-1.59.28-3.14.76-4.59l-7.98-6.19A23.998 23.998 0 0 0 0 24c0 3.77.9 7.35 2.56 10.52l7.97-5.93z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 5.93C6.51 42.62 14.62 48 24 48z"/></svg>
-        Sign in with Google
-      </button>
+    <div id="manualSignInArea" style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+      <p>Enter your name to race and compete on the leaderboard!</p>
+      <input id="playerNameInput" type="text" placeholder="Your Name" style="padding:10px 18px;font-size:16px;border-radius:8px;border:1px solid #00f5ff;background:var(--surface2);color:var(--text);width:220px;max-width:100%;text-align:center;" />
+      <button class="btn btn-primary" id="manualSignInBtn">Start</button>
     </div>
     <div class="config-notice">
       ⚙️ <strong>Blogger Setup:</strong> Replace <code>YOUR_CLIENT_ID</code> in the script with your Google OAuth Client ID. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="color:var(--cyan);">Get one here</a>.
@@ -769,24 +766,36 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 // Try to restore session
 function tryAutoLogin() {
   const saved = retrieve('user');
-  if (saved && saved.email) {
+  if (saved && saved.name) {
     currentUser = saved;
     enterMenu();
   } else {
     showScreen('login');
   }
-  initGoogleSignIn();
+}
+
+// Manual sign-in handler
+if (document.getElementById('manualSignInBtn')) {
+  document.getElementById('manualSignInBtn').addEventListener('click', function() {
+    const name = document.getElementById('playerNameInput').value.trim();
+    if (!name) {
+      showModal('Please enter your name.', 'OK');
+      return;
+    }
+    currentUser = {
+      name: name,
+      email: name + '@local', // Use name as email for leaderboard
+      picture: ''
+    };
+    store('user', currentUser);
+    enterMenu();
+  });
 }
 
 function enterMenu() {
   document.getElementById('userName').textContent = currentUser.name;
   const avatar = document.getElementById('userAvatar');
-  if (currentUser.picture) {
-    avatar.src = currentUser.picture;
-    avatar.style.display = '';
-  } else {
-    avatar.style.display = 'none';
-  }
+  avatar.style.display = 'none';
   showScreen('menu');
 }
 
