@@ -1540,34 +1540,12 @@ document.getElementById('lbBackBtn').addEventListener('click', () => showScreen(
 // ============================================================
 //  INIT
 // ============================================================
-// ============================================================
-//  INIT
-// ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-  // Check if we can auto-login
-  tryAutoLogin();
-  
-  // Also try again after a short delay for Google script
-  setTimeout(initGoogleSignIn, 1000);
-});
-
-// Polyfill roundRect if needed
-if (!CanvasRenderingContext2D.prototype.roundRect) {
-  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
-    if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
-    this.moveTo(x + r.tl, y);
-    this.lineTo(x + w - r.tr, y);
-    this.quadraticCurveTo(x + w, y, x + w, y + r.tr);
-    this.lineTo(x + w, y + h - r.br);
-    this.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
-    this.lineTo(x + r.bl, y + h);
-    this.quadraticCurveTo(x, y + h, x, y + h - r.bl);
-    this.lineTo(x, y + r.tl);
-    this.quadraticCurveTo(x, y, x + r.tl, y);
-    this.closePath();
-    return this;
-  };
-}
+// Remove auto-login and Google Sign-In initialization
+// document.addEventListener('DOMContentLoaded', () => {
+//   tryAutoLogin();
+//   setTimeout(initGoogleSignIn, 1000);
+// });
+// Only manual sign-in is used now.
 </script>
 </body>
 </html>
