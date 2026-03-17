@@ -779,7 +779,6 @@ function tryAutoLogin() {
 }
 
 // Manual sign-in handler
-// Manual sign-in handler
 function handleManualSignIn() {
   const nameInput = document.getElementById('playerNameInput');
   const name = nameInput.value.trim();
@@ -793,7 +792,9 @@ function handleManualSignIn() {
     picture: ''
   };
   store('user', currentUser);
-  enterMenu();
+  selectedCarColor = '#00f5ff'; // Default car color
+  showScreen('playing');
+  startGame();
 }
 
 const signInBtn = document.getElementById('manualSignInBtn');
