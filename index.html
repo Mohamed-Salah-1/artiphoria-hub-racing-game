@@ -646,8 +646,13 @@ function showScreen(name) {
 // Access storage indirectly to work across environments
 const _ls = (() => { try { return window['local' + 'Storage']; } catch(e) { return null; } })();
 const storageAvailable = (() => {
-  try { const t = '__test__'; _ls.setItem(t, t); _ls.removeItem(t); return true; }
-  catch(e) { return false; }
+  try {
+    if (!_ls) return false;
+    const t = '__test__';
+    _ls.setItem(t, t);
+    _ls.removeItem(t);
+    return true;
+  } catch(e) { return false; }
 })();
 
 const memoryStore = {};
@@ -779,40 +784,63 @@ function tryAutoLogin() {
 }
 
 // Manual sign-in handler
+let isSigningIn = false;
 function handleManualSignIn() {
-  const nameInput = document.getElementById('playerNameInput');
-  const name = nameInput.value.trim();
-  if (!name) {
-    showModal('Please enter your name.', 'OK');
-    return;
+  if (isSigningIn) return;
+  console.log('Manual Sign-In started...');
+  try {
+    const nameInput = document.getElementById('playerNameInput');
+    const name = (nameInput && nameInput.value) ? nameInput.value.trim() : 'Player';
+    
+    isSigningIn = true;
+    currentUser = {
+      name: name || 'Player',
+      email: (name || 'Player') + '@local',
+      picture: ''
+    };
+    
+    console.log('User object created:', currentUser);
+    try {
+      store('user', currentUser);
+    } catch(e) { console.warn('Storage failed:', e); }
+
+    // Always transition to menu first for better initialization
+    enterMenu();
+    
+    setTimeout(() => { isSigningIn = false; }, 1000);
+  } catch (err) {
+    console.error('Fatal sign-in error:', err);
+    isSigningIn = false;
+    // Attempt fallback menu entry
+    showScreen('menu');
   }
-  currentUser = {
-    name: name,
-    email: name + '@local',
-    picture: ''
-  };
-  store('user', currentUser);
-  selectedCarColor = '#00f5ff'; // Default car color
-  showScreen('playing');
-  startGame();
 }
 
 const signInBtn = document.getElementById('manualSignInBtn');
 if (signInBtn) {
-  signInBtn.addEventListener('click', handleManualSignIn);
-  // Add touchstart for better mobile/iframe response
-  signInBtn.addEventListener('touchstart', (e) => {
+  // Use pointerdown for most responsive cross-platform feel
+  signInBtn.addEventListener('pointerdown', (e) => {
     if (gameState === 'login') {
       e.preventDefault();
       handleManualSignIn();
     }
-  }, { passive: false });
+  });
+  // Keep click as secondary fallback just in case
+  signInBtn.addEventListener('click', (e) => {
+    if (gameState === 'login' && !isSigningIn) {
+      handleManualSignIn();
+    }
+  });
 }
 
 function enterMenu() {
-  document.getElementById('userName').textContent = currentUser.name;
+  console.log('Entering Menu...');
+  const nameEl = document.getElementById('userName');
+  if (nameEl) nameEl.textContent = currentUser.name;
+  
   const avatar = document.getElementById('userAvatar');
-  avatar.style.display = 'none';
+  if (avatar) avatar.style.display = 'none';
+  
   showScreen('menu');
 }
 
