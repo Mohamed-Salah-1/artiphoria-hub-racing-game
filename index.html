@@ -530,7 +530,7 @@
       <button class="btn btn-primary" id="manualSignInBtn">Start</button>
     </div>
     <div class="config-notice">
-      ⚙️ <strong>Blogger Setup:</strong> Replace <code>YOUR_CLIENT_ID</code> in the script with your Google OAuth Client ID. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="color:var(--cyan);">Get one here</a>.
+     <!-- Blogger Setup notice removed -->
     </div>
   </div>
 
@@ -775,22 +775,25 @@ function tryAutoLogin() {
 }
 
 // Manual sign-in handler
-if (document.getElementById('manualSignInBtn')) {
-  document.getElementById('manualSignInBtn').addEventListener('click', function() {
-    const name = document.getElementById('playerNameInput').value.trim();
-    if (!name) {
-      showModal('Please enter your name.', 'OK');
-      return;
-    }
-    currentUser = {
-      name: name,
-      email: name + '@local', // Use name as email for leaderboard
-      picture: ''
-    };
-    store('user', currentUser);
-    enterMenu();
-  });
-}
+document.addEventListener('DOMContentLoaded', function() {
+  var signInBtn = document.getElementById('manualSignInBtn');
+  if (signInBtn) {
+    signInBtn.addEventListener('click', function() {
+      const name = document.getElementById('playerNameInput').value.trim();
+      if (!name) {
+        showModal('Please enter your name.', 'OK');
+        return;
+      }
+      currentUser = {
+        name: name,
+        email: name + '@local', // Use name as email for leaderboard
+        picture: ''
+      };
+      store('user', currentUser);
+      enterMenu();
+    });
+  }
+});
 
 function enterMenu() {
   document.getElementById('userName').textContent = currentUser.name;
