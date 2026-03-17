@@ -767,27 +767,15 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 });
 
 // Try to restore session
-// TEMPORARY: Disable authentication for testing
-// To restore authentication, revert to the original tryAutoLogin() implementation below
-// function tryAutoLogin() {
-//   const saved = retrieve('user');
-//   if (saved && saved.email) {
-//     currentUser = saved;
-//     enterMenu();
-//   } else {
-//     showScreen('login');
-//   }
-//   initGoogleSignIn();
-// }
-
 function tryAutoLogin() {
-  // Bypass authentication for testing
-  currentUser = {
-    name: 'Test User',
-    email: 'testuser@example.com',
-    picture: ''
-  };
-  enterMenu();
+  const saved = retrieve('user');
+  if (saved && saved.email) {
+    currentUser = saved;
+    enterMenu();
+  } else {
+    showScreen('login');
+  }
+  initGoogleSignIn();
 }
 
 function enterMenu() {
