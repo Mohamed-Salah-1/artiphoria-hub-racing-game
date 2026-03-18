@@ -137,23 +137,28 @@
   /* User info */
   .user-badge {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 10px;
-    padding: 8px 16px;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
     background: var(--surface2);
     border-radius: 20px;
     border: 1px solid rgba(0,245,255,0.15);
     margin-bottom: 20px;
   }
   .user-badge img {
-    width: 32px;
-    height: 32px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     border: 2px solid var(--cyan);
+    object-fit: cover;
+    display: block;
   }
   .user-badge .name {
     font-weight: 700;
     font-size: 14px;
+    text-align: center;
   }
 
   /* Buttons */
@@ -533,9 +538,6 @@
         <span style="font-family:'Racing Sans One',cursive;font-size:22px;background:linear-gradient(135deg,#00f5ff,#ff00aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px;">Artiphoria-Hub</span>
       </div>
     </div>
-    <div class="config-notice">
-     <!-- Blogger Setup notice removed -->
-    </div>
   </div>
 
   <!-- MENU SCREEN -->
@@ -543,7 +545,7 @@
     <div class="game-title">Neon Rush</div>
     <div class="game-subtitle">Racing</div>
     <div class="user-badge" id="userBadge">
-      <img id="userAvatar" src="" alt="">
+      <img id="userAvatar" src="artiphoria.png" alt="Artiphoria Logo">
       <span class="name" id="userName"></span>
     </div>
     <div class="menu-buttons">
@@ -603,244 +605,167 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e =
 // ============================================================
 //  STATE
 // ============================================================
-let currentUser = null; // { name, email, picture }
-let gameState = 'login'; // login, menu, carselect, playing, paused, gameover, leaderboard
-let selectedCarColor = '#00f5ff';
+// ============================================================
+//  GAME CONFIG & GLOBALS
+// ============================================================
+var currentUser = null;
+var gameState = 'login';
+var selectedCarColor = '#00f5ff';
+var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-// Screens
-const loginScreen = document.getElementById('loginScreen');
-const menuScreen = document.getElementById('menuScreen');
-const lbScreen = document.getElementById('lbScreen');
-const gameOverScreen = document.getElementById('gameOverScreen');
-const pauseScreen = document.getElementById('pauseScreen');
-const carSelectScreen = document.getElementById('carSelectScreen');
-const hud = document.getElementById('hud');
-const touchControls = document.getElementById('touchControls');
-const pauseBtn = document.getElementById('pauseBtn');
+var LANES = 5;
+var LANE_W = function() { return (W * 0.8) / LANES; };
+var ROAD_L = function() { return W * 0.1; };
+var ROAD_R = function() { return W * 0.9; };
+var CAR_W  = function() { return LANE_W() * 0.5; };
+var CAR_H  = function() { return CAR_W() * 1.3; };
+var CAR_COLORS = ['#ff3355','#00ccff','#ff8800','#aa44ff','#44ff44','#ffdd00','#ff66aa','#66ffcc'];
+
+var W, H, SCALE;
+var player, enemies, coins, particles, score, coinCount, speed, distance, powerUps, multiplier, carsPassed, startTime;
+var frameId, lastTime, gameRunning = false;
+var roadOffset = 0, difficultyTimer = 0, spawnTimer = 0, coinSpawnTimer = 0;
+var keys = {}, touchLeft = false, touchRight = false;
+
+// UI Elements — script is at bottom of <body>, so all elements already exist here
+var loginScreen     = document.getElementById('loginScreen');
+var menuScreen      = document.getElementById('menuScreen');
+var lbScreen        = document.getElementById('lbScreen');
+var gameOverScreen  = document.getElementById('gameOverScreen');
+var pauseScreen     = document.getElementById('pauseScreen');
+var carSelectScreen = document.getElementById('carSelectScreen');
+var hud             = document.getElementById('hud');
+var touchControls   = document.getElementById('touchControls');
+var pauseBtn        = document.getElementById('pauseBtn');
+var canvas          = document.getElementById('gameCanvas');
+var ctx             = canvas ? canvas.getContext('2d') : null;
 
 function showScreen(name) {
-  [loginScreen, menuScreen, lbScreen, gameOverScreen, pauseScreen, carSelectScreen].forEach(s => s.classList.add('hidden'));
-  hud.classList.add('hidden');
-  touchControls.classList.add('hidden');
-  pauseBtn.style.display = 'none';
+  [loginScreen, menuScreen, lbScreen, gameOverScreen, pauseScreen, carSelectScreen].forEach(function(s) { if (s) s.classList.add('hidden'); });
+  if (hud)          hud.classList.add('hidden');
+  if (touchControls) touchControls.classList.add('hidden');
+  if (pauseBtn)     pauseBtn.style.display = 'none';
 
   switch(name) {
-    case 'login': loginScreen.classList.remove('hidden'); break;
-    case 'menu': menuScreen.classList.remove('hidden'); break;
-    case 'carselect': carSelectScreen.classList.remove('hidden'); break;
-    case 'leaderboard': lbScreen.classList.remove('hidden'); break;
-    case 'gameover': gameOverScreen.classList.remove('hidden'); break;
-    case 'paused': pauseScreen.classList.remove('hidden'); /* fall through - show HUD too */
+    case 'login':       if (loginScreen)     loginScreen.classList.remove('hidden');     break;
+    case 'menu':        if (menuScreen)      menuScreen.classList.remove('hidden');       break;
+    case 'carselect':   if (carSelectScreen) carSelectScreen.classList.remove('hidden'); break;
+    case 'leaderboard': if (lbScreen)        lbScreen.classList.remove('hidden');        break;
+    case 'gameover':    if (gameOverScreen)  gameOverScreen.classList.remove('hidden');  break;
+    case 'paused':      if (pauseScreen)     pauseScreen.classList.remove('hidden');     /* fall through */
     case 'playing':
-      hud.classList.remove('hidden');
-      if (isTouchDevice) touchControls.classList.remove('hidden');
-      pauseBtn.style.display = 'flex';
+      if (hud)          hud.classList.remove('hidden');
+      if (isTouchDevice && touchControls) touchControls.classList.remove('hidden');
+      if (pauseBtn)     pauseBtn.style.display = 'flex';
       break;
   }
   gameState = name;
 }
 
 // ============================================================
-//  STORAGE (localStorage for Blogger, in-memory fallback)
+//  STORAGE (localStorage with in-memory fallback)
 // ============================================================
-// Access storage indirectly to work across environments
-const _ls = (() => { try { return window['local' + 'Storage']; } catch(e) { return null; } })();
-const storageAvailable = (() => {
-  try {
-    if (!_ls) return false;
-    const t = '__test__';
-    _ls.setItem(t, t);
-    _ls.removeItem(t);
-    return true;
-  } catch(e) { return false; }
+var _ls = (function() { try { return window['local' + 'Storage']; } catch(e) { return null; } })();
+var storageAvailable = (function() {
+  try { if (!_ls) return false; var t='__t__'; _ls.setItem(t,t); _ls.removeItem(t); return true; }
+  catch(e) { return false; }
 })();
-
-const memoryStore = {};
-
+var memoryStore = {};
 function store(key, value) {
-  const json = JSON.stringify(value);
-  if (storageAvailable) { _ls.setItem('neonrush_' + key, json); }
-  else { memoryStore[key] = json; }
+  var json = JSON.stringify(value);
+  if (storageAvailable) _ls.setItem('neonrush_' + key, json);
+  else memoryStore[key] = json;
 }
 function retrieve(key) {
-  const raw = storageAvailable ? _ls.getItem('neonrush_' + key) : memoryStore[key];
+  var raw = storageAvailable ? _ls.getItem('neonrush_' + key) : memoryStore[key];
   if (!raw) return null;
   try { return JSON.parse(raw); } catch(e) { return null; }
 }
 
-// Leaderboard
+// Leaderboard helpers
 function getLeaderboard() { return retrieve('leaderboard') || []; }
 function addScore(user, score) {
-  const lb = getLeaderboard();
-  const existing = lb.find(e => e.email === user.email);
-  if (existing) {
-    if (score > existing.score) {
-      existing.score = score;
-      existing.name = user.name;
-      existing.picture = user.picture;
-    }
-  } else {
-    lb.push({ name: user.name, email: user.email, picture: user.picture, score });
-  }
-  lb.sort((a, b) => b.score - a.score);
+  var lb = getLeaderboard();
+  var ex = lb.find(function(e) { return e.email === user.email; });
+  if (ex) { if (score > ex.score) { ex.score = score; ex.name = user.name; ex.picture = user.picture; } }
+  else lb.push({ name: user.name, email: user.email, picture: user.picture, score: score });
+  lb.sort(function(a, b) { return b.score - a.score; });
   store('leaderboard', lb.slice(0, 50));
   return lb;
 }
-
 function getUserBest(email) {
-  const lb = getLeaderboard();
-  const entry = lb.find(e => e.email === email);
-  return entry ? entry.score : 0;
+  var e = getLeaderboard().find(function(e) { return e.email === email; });
+  return e ? e.score : 0;
 }
-
 function renderLeaderboard() {
-  const lb = getLeaderboard();
-  const list = document.getElementById('lbList');
-  if (lb.length === 0) {
-    list.innerHTML = '<div class="lb-empty">No scores yet. Be the first to race!</div>';
-    return;
-  }
-  list.innerHTML = lb.slice(0, 20).map((e, i) => `
-    <div class="lb-row" style="animation-delay:${i * 0.05}s">
-      <span class="lb-rank">#${i + 1}</span>
-      <img class="lb-img" src="${e.picture || ''}" alt="" onerror="this.style.display='none'">
-      <span class="lb-name">${escapeHtml(e.name)}</span>
-      <span class="lb-score">${e.score.toLocaleString()}</span>
-    </div>
-  `).join('');
+  var lb = getLeaderboard(), list = document.getElementById('lbList');
+  if (lb.length === 0) { list.innerHTML = '<div class="lb-empty">No scores yet. Be the first to race!</div>'; return; }
+  list.innerHTML = lb.slice(0, 20).map(function(e, i) {
+    return '<div class="lb-row" style="animation-delay:' + (i*0.05) + 's">' +
+      '<span class="lb-rank">#' + (i+1) + '</span>' +
+      '<img class="lb-img" src="' + (e.picture||'') + '" alt="" onerror="this.style.display=\'none\'">' +
+      '<span class="lb-name">' + escapeHtml(e.name) + '</span>' +
+      '<span class="lb-score">' + e.score.toLocaleString() + '</span></div>';
+  }).join('');
 }
-
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
-}
+function escapeHtml(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 
 // ============================================================
-//  GOOGLE SIGN-IN
+//  AUTH
 // ============================================================
 function decodeJWT(token) {
   try {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(decodeURIComponent(atob(base64).split('').map(c =>
-      '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-    ).join('')));
+    var b = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(decodeURIComponent(atob(b).split('').map(function(c){ return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2); }).join('')));
   } catch(e) { return null; }
 }
-
 function handleCredentialResponse(response) {
-  const payload = decodeJWT(response.credential);
-  if (payload) {
-    currentUser = {
-      name: payload.name || payload.email,
-      email: payload.email,
-      picture: payload.picture || ''
-    };
-    store('user', currentUser);
-    enterMenu();
-  }
+  var p = decodeJWT(response.credential);
+  if (p) { currentUser = { name: p.name||p.email, email: p.email, picture: p.picture||'' }; store('user', currentUser); enterMenu(); }
 }
-
 function initGoogleSignIn() {
   if (typeof google !== 'undefined' && google.accounts) {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleCredentialResponse,
-      auto_select: true
-    });
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse, auto_select: true });
   }
 }
 
-document.getElementById('customSignIn').addEventListener('click', () => {
+var _csi = document.getElementById('customSignIn');
+if (_csi) _csi.addEventListener('click', function() {
   if (typeof google !== 'undefined' && google.accounts) {
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        showModal('Google Sign-In is not available. Make sure you have configured a valid OAuth Client ID and that pop-ups are allowed.', 'OK');
-      }
-    });
-  } else {
-    showModal('Google Sign-In library failed to load. Please check your internet connection or CSP settings.', 'OK');
-  }
+    google.accounts.id.prompt(function(n) { if (n.isNotDisplayed()||n.isSkippedMoment()) showModal('Google Sign-In unavailable.','OK'); });
+  } else showModal('Google Sign-In library failed to load.','OK');
 });
 
-document.getElementById('signOutBtn').addEventListener('click', () => {
-  currentUser = null;
-  store('user', null);
-  if (typeof google !== 'undefined' && google.accounts) {
-    google.accounts.id.disableAutoSelect();
-  }
+var _sout = document.getElementById('signOutBtn');
+if (_sout) _sout.addEventListener('click', function() {
+  currentUser = null; store('user', null);
+  if (typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
   showScreen('login');
 });
 
-// Try to restore session
 function tryAutoLogin() {
-  const saved = retrieve('user');
-  if (saved && saved.name) {
-    currentUser = saved;
-    enterMenu();
-  } else {
-    showScreen('login');
-  }
+  var saved = retrieve('user');
+  if (saved && saved.name) { currentUser = saved; enterMenu(); }
+  else showScreen('login');
 }
 
-// Manual sign-in handler
-let isSigningIn = false;
+// Manual sign-in — Start button
 function handleManualSignIn() {
-  if (isSigningIn) return;
-  console.log('Manual Sign-In started...');
-  try {
-    const nameInput = document.getElementById('playerNameInput');
-    const name = (nameInput && nameInput.value) ? nameInput.value.trim() : 'Player';
-    
-    isSigningIn = true;
-    currentUser = {
-      name: name || 'Player',
-      email: (name || 'Player') + '@local',
-      picture: ''
-    };
-    
-    console.log('User object created:', currentUser);
-    try {
-      store('user', currentUser);
-    } catch(e) { console.warn('Storage failed:', e); }
-
-    // Always transition to menu first for better initialization
-    enterMenu();
-    
-    setTimeout(() => { isSigningIn = false; }, 1000);
-  } catch (err) {
-    console.error('Fatal sign-in error:', err);
-    isSigningIn = false;
-    // Attempt fallback menu entry
-    showScreen('menu');
-  }
+  var inp = document.getElementById('playerNameInput');
+  var name = (inp && inp.value) ? inp.value.trim() : 'Player';
+  currentUser = { name: name||'Player', email: (name||'Player')+'@local', picture: '' };
+  selectedCarColor = '#00f5ff';
+  startGame();
 }
 
-const signInBtn = document.getElementById('manualSignInBtn');
+var signInBtn = document.getElementById('manualSignInBtn');
 if (signInBtn) {
-  // Use pointerdown for most responsive cross-platform feel
-  signInBtn.addEventListener('pointerdown', (e) => {
-    if (gameState === 'login') {
-      e.preventDefault();
-      handleManualSignIn();
-    }
-  });
-  // Keep click as secondary fallback just in case
-  signInBtn.addEventListener('click', (e) => {
-    if (gameState === 'login' && !isSigningIn) {
-      handleManualSignIn();
-    }
-  });
+  signInBtn.addEventListener('click', handleManualSignIn);
+  signInBtn.addEventListener('pointerdown', function(e) { e.preventDefault(); handleManualSignIn(); });
 }
 
 function enterMenu() {
-  console.log('Entering Menu...');
-  const nameEl = document.getElementById('userName');
-  if (nameEl) nameEl.textContent = currentUser.name;
-  
-  const avatar = document.getElementById('userAvatar');
-  if (avatar) avatar.style.display = 'none';
-  
+  var n = document.getElementById('userName'); if (n) n.textContent = currentUser.name;
   showScreen('menu');
 }
 
@@ -891,21 +816,14 @@ function sfxCrash() { playTone(100, 0.4, 'sawtooth', 0.1); playTone(60, 0.5, 'sq
 function sfxStart() { [440,550,660,880].forEach((f,i) => setTimeout(() => playTone(f, 0.12, 'square', 0.05), i*80)); }
 function sfxBrake() { playTone(120, 0.18, 'triangle', 0.12); playTone(80, 0.22, 'square', 0.08); }
 
-// ============================================================
-//  DETECT TOUCH
-// ============================================================
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 // ============================================================
 //  GAME ENGINE
 // ============================================================
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
 
 // Sizing
-let W, H, SCALE;
 function resize() {
-  const wrapper = document.getElementById('gameWrapper');
+  var wrapper = document.getElementById('gameWrapper');
   W = wrapper.clientWidth;
   H = wrapper.clientHeight;
   SCALE = W / 480;
@@ -914,29 +832,6 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
-
-// Game constants
-const LANES = 5;
-const LANE_W = () => (W * 0.8) / LANES; // wider lanes
-const ROAD_L = () => W * 0.1; // wider pavement
-const ROAD_R = () => W * 0.9;
-const CAR_W = () => LANE_W() * 0.5; // smaller cars
-const CAR_H = () => CAR_W() * 1.3;
-
-// Colors for cars
-const CAR_COLORS = ['#ff3355','#00ccff','#ff8800','#aa44ff','#44ff44','#ffdd00','#ff66aa','#66ffcc'];
-
-// Game variables
-let player, enemies, coins, particles, score, coinCount, speed, distance, powerUps, multiplier, carsPassed, startTime;
-let frameId, lastTime, gameRunning;
-let roadOffset = 0;
-let difficultyTimer = 0;
-let spawnTimer = 0;
-let coinSpawnTimer = 0;
-
-// Input
-const keys = {};
-let touchLeft = false, touchRight = false;
 
 function laneX(lane) {
   return ROAD_L() + lane * LANE_W() + LANE_W() / 2;
@@ -1566,14 +1461,10 @@ document.getElementById('leaderBtn').addEventListener('click', () => {
 document.getElementById('lbBackBtn').addEventListener('click', () => showScreen('menu'));
 
 // ============================================================
-//  INIT
+//  INIT — script runs at bottom of body; all elements already exist
 // ============================================================
-// Remove auto-login and Google Sign-In initialization
-// document.addEventListener('DOMContentLoaded', () => {
-//   tryAutoLogin();
-//   setTimeout(initGoogleSignIn, 1000);
-// });
-// Only manual sign-in is used now.
+tryAutoLogin();
+setTimeout(initGoogleSignIn, 500);
 </script>
 </body>
 </html>
